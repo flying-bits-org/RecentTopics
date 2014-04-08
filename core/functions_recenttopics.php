@@ -194,16 +194,8 @@ class functions_recenttopics
 			return;
 		}
 
-		// Moderator forums
-		$m_approve_ids = array();
-		$m_approve_ary = $this->auth->acl_getf('m_approve');
-		foreach ($m_approve_ary as $forum_id => $allowed)
-		{
-			if ($allowed['m_approve'] && in_array($forum_id, $forum_ids))
-			{
-				$m_approve_ids[] = (int) $forum_id;
-			}
-		}
+		// Remove duplicated ids
+		$forum_ids = array_unique($forum_ids);
 
 		// Get the allowed topics
 		$sql_array = array(
@@ -219,27 +211,16 @@ class functions_recenttopics
 					'ON'	=> 'ft.forum_id = t.forum_id AND ft.user_id = ' . $this->user->data['user_id'],
 				),
 			),
-			'WHERE'		=> '
-				(
-					' . $this->db->sql_in_set('t.topic_id', $excluded_topic_ids, true) . '
-					AND ' . $this->db->sql_in_set('t.forum_id', $forum_ids) . '
-				)
+			'WHERE'		=> $this->db->sql_in_set('t.topic_id', $excluded_topic_ids, true) . '
 				AND t.topic_status <> ' . ITEM_MOVED . '
-				AND (' . $this->db->sql_in_set('t.forum_id', $m_approve_ids, false, true) . '
-					OR t.topic_posts_approved >= 1)',
+				AND ' . $this->content_visibility->get_forums_visibility_sql('topic', $forum_ids, $table_alias = 't.'),
 			'ORDER_BY'	=> 't.topic_last_post_time DESC',
 		);
 
-		// TODO: rework the soft-delete feature
-		if (file_exists("{$this->root_path}includes/mods/soft_delete.$this->phpEx"))
-		{
-			$sql_array['WHERE'] .= ' AND topic_deleted = 0';
-		}
-	
 		$sql = $this->db->sql_build_query('SELECT', $sql_array);
 		$result = $this->db->sql_query_limit($sql, $total_limit);
 	
-		$forums = $ga_topic_ids = $topic_ids = array();
+		$forums = $topic_ids = array();
 		$topics_count = 0;
 		$obtain_icons = false;
 
