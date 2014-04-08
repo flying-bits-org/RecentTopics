@@ -99,7 +99,6 @@ class functions_recenttopics
 		$start 					= request_var($tpl_loopname . '_start', 0);
 		$excluded_topic_ids 	= explode(', ', $excluded_topics);
 		$total_limit			= $topics_per_page * $num_pages;
-		$ga_forum_id			= 0; // Forum id we use for global announcements
 	
 		/**
 		* Get the forums we take our topics from
@@ -222,10 +221,8 @@ class functions_recenttopics
 			),
 			'WHERE'		=> '
 				(
-					(' . $this->db->sql_in_set('t.topic_id', $excluded_topic_ids, true) . '
-						AND ' . $this->db->sql_in_set('t.forum_id', $forum_ids) . '
-					)
-					OR t.topic_type = ' . POST_GLOBAL . '
+					' . $this->db->sql_in_set('t.topic_id', $excluded_topic_ids, true) . '
+					AND ' . $this->db->sql_in_set('t.forum_id', $forum_ids) . '
 				)
 				AND t.topic_status <> ' . ITEM_MOVED . '
 				AND (' . $this->db->sql_in_set('t.forum_id', $m_approve_ids, false, true) . '
@@ -349,23 +346,6 @@ class functions_recenttopics
 			$topic_id = $row['topic_id'];
 			$forum_id = $row['forum_id'];
 	
-			// Cheat for Global Announcements on the unread-link: copied from search.php
-			if (!$forum_id && !$ga_forum_id)
-			{
-				$sql2 = 'SELECT forum_id
-					FROM ' . FORUMS_TABLE . '
-					WHERE forum_type = ' . FORUM_POST . '
-						AND ' . $this->db->sql_in_set('forum_id', $forum_ary, false, true);
-				$result2 = $this->db->sql_query_limit($sql2, 1);
-				$ga_forum_id = (int) $this->db->sql_fetchfield('forum_id');
-				$this->db->sql_freeresult($result2);
-				$forum_id = $ga_forum_id;
-			}
-			else if (!$forum_id && $ga_forum_id)
-			{
-				$forum_id = $ga_forum_id;
-			}
-	
 			$s_type_switch_test = ($row['topic_type'] == POST_ANNOUNCE || $row['topic_type'] == POST_GLOBAL) ? 1 : 0;
 			//$replies = ($this->auth->acl_get('m_approve', $forum_id)) ? $row['topic_replies_real'] : $row['topic_replies'];
 			$replies = $this->content_visibility->get_count('topic_posts', $row, $forum_id) - 1;
@@ -376,8 +356,8 @@ class functions_recenttopics
 			$view_topic_url = append_sid("{$this->root_path}viewtopic.$this->phpEx", 'f=' . $forum_id . '&amp;t=' . $topic_id);
 			$view_forum_url = append_sid("{$this->root_path}viewforum.$this->phpEx", 'f=' . $forum_id);
 
-			$topic_unapproved = ($row['topic_visibility'] == ITEM_UNAPPROVED && $auth->acl_get('m_approve', $forum_id));
-			$posts_unapproved = ($row['topic_visibility'] == ITEM_APPROVED && $row['topic_posts_unapproved'] && $auth->acl_get('m_approve', $forum_id));
+			$topic_unapproved = ($row['topic_visibility'] == ITEM_UNAPPROVED && $this->auth->acl_get('m_approve', $forum_id));
+			$posts_unapproved = ($row['topic_visibility'] == ITEM_APPROVED && $row['topic_posts_unapproved'] && $this->auth->acl_get('m_approve', $forum_id));
 
 			$u_mcp_queue = ($topic_unapproved || $posts_unapproved) ? append_sid("{$this->root_path}mcp.$this->phpEx", 'i=queue&amp;mode=' . (($topic_unapproved) ? 'approve_details' : 'unapproved_posts') . "&amp;t=$topic_id", true, $this->user->session_id) : '';
 			$s_type_switch = ($row['topic_type'] == POST_ANNOUNCE || $row['topic_type'] == POST_GLOBAL) ? 1 : 0;
